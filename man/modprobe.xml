@@ -78,7 +78,7 @@
       is no difference between _ and - in module names (automatic
       underscore conversion is performed).
       <command>modprobe</command> looks in the module directory
-      <filename>/lib/modules/`uname -r`</filename> for all
+      <filename>@MODULE_DIRECTORY@/`uname -r`</filename> for all
       the modules and other files, except for the optional
       configuration files in the
       <filename>/etc/modprobe.d</filename> directory
@@ -114,6 +114,13 @@
       <replaceable>modulename</replaceable>, they are passed to the
       kernel (in addition to any options listed in the configuration
       file).
+    </para>
+    <para>
+      When loading modules, <replaceable>modulename</replaceable> can also
+      be a path to the module. If the path is relative, it must
+      explicitly start with "./". Note that this may fail when using a
+      path to a module with dependencies not matching the installed depmod
+      database.
     </para>
   </refsect1>
 
@@ -385,6 +392,23 @@
             There is usually no reason to remove modules, but some buggy
             modules require it.  Your distribution kernel may not have been
             built to support removal of modules at all.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>
+          <option>-w</option>
+        </term>
+        <term>
+        <option>--wait=</option>TIMEOUT_MSEC
+        </term>
+        <listitem>
+          <para>
+            This option causes <command>modprobe -r</command> to continue trying to
+            remove a module if it fails due to the module being busy, i.e. its refcount
+            is not 0 at the time the call is made. Modprobe tries to remove the module
+            with an incremental sleep time between each tentative up until the maximum
+            wait time in milliseconds passed in this option.
           </para>
         </listitem>
       </varlistentry>

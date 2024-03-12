@@ -50,19 +50,21 @@ static int verbose = DEFAULT_VERBOSE;
 
 static const char CFG_BUILTIN_KEY[] = "built-in";
 static const char CFG_EXTERNAL_KEY[] = "external";
-static const char *default_cfg_paths[] = {
+static const char *const default_cfg_paths[] = {
 	SYSCONFDIR "/depmod.d",
 	"/run/depmod.d",
 	"/usr/local/lib/depmod.d",
+	DISTCONFDIR "/depmod.d",
 	"/lib/depmod.d",
 	NULL
 };
 
-static const char cmdopts_s[] = "aAb:C:E:F:euqrvnP:wmVh";
+static const char cmdopts_s[] = "aAb:o:C:E:F:euqrvnP:wmVh";
 static const struct option cmdopts[] = {
 	{ "all", no_argument, 0, 'a' },
 	{ "quick", no_argument, 0, 'A' },
 	{ "basedir", required_argument, 0, 'b' },
+	{ "outdir", required_argument, 0, 'o' },
 	{ "config", required_argument, 0, 'C' },
 	{ "symvers", required_argument, 0, 'E' },
 	{ "filesyms", required_argument, 0, 'F' },
@@ -104,6 +106,7 @@ static void help(void)
 		"\n"
 		"The following options are useful for people managing distributions:\n"
 		"\t-b, --basedir=DIR    Use an image of a module tree.\n"
+		"\t-o, --outdir=DIR     Output directory for generated files.\n"
 		"\t-F, --filesyms=FILE  Use the file instead of the\n"
 		"\t                     current kernel symbols.\n"
 		"\t-E, --symvers=FILE   Use Module.symvers file to check\n"
@@ -187,7 +190,7 @@ static struct index_node *index_create(void)
 {
 	struct index_node *node;
 
-	node = NOFAIL(calloc(sizeof(struct index_node), 1));
+	node = NOFAIL(calloc(1, sizeof(struct index_node)));
 	node->prefix = NOFAIL(strdup(""));
 	node->first = INDEX_CHILDMAX;
 
@@ -250,7 +253,7 @@ static int index_add_value(struct index_value **values,
 		values = &(*values)->next;
 
 	len = strlen(value);
-	v = NOFAIL(calloc(sizeof(struct index_value) + len + 1, 1));
+	v = NOFAIL(calloc(1, sizeof(struct index_value) + len + 1));
 	v->next = *values;
 	v->priority = priority;
 	memcpy(v->value, value, len + 1);
@@ -281,7 +284,7 @@ static int index_insert(struct index_node *node, const char *key,
 				struct index_node *n;
 
 				/* New child is copy of node with prefix[j+1..N] */
-				n = NOFAIL(calloc(sizeof(struct index_node), 1));
+				n = NOFAIL(calloc(1, sizeof(struct index_node)));
 				memcpy(n, node, sizeof(struct index_node));
 				n->prefix = NOFAIL(strdup(&prefix[j+1]));
 
@@ -310,7 +313,7 @@ static int index_insert(struct index_node *node, const char *key,
 				node->first = ch;
 			if (ch > node->last)
 				node->last = ch;
-			node->children[ch] = NOFAIL(calloc(sizeof(struct index_node), 1));
+			node->children[ch] = NOFAIL(calloc(1, sizeof(struct index_node)));
 
 			child = node->children[ch];
 			child->prefix = NOFAIL(strdup(&key[i+1]));
@@ -458,10 +461,17 @@ struct cfg_external {
 	char path[];
 };
 
+struct cfg_exclude {
+	struct cfg_exclude *next;
+	char exclude_dir[];
+};
+
 struct cfg {
 	const char *kversion;
 	char dirname[PATH_MAX];
 	size_t dirnamelen;
+	char outdirname[PATH_MAX];
+	size_t outdirnamelen;
 	char sym_prefix;
 	uint8_t check_symvers;
 	uint8_t print_unknown;
@@ -469,6 +479,7 @@ struct cfg {
 	struct cfg_override *overrides;
 	struct cfg_search *searches;
 	struct cfg_external *externals;
+	struct cfg_exclude *excludes;
 };
 
 static enum search_type cfg_define_search_type(const char *path)
@@ -580,6 +591,30 @@ static void cfg_external_free(struct cfg_external *ext)
 	free(ext);
 }
 
+static int cfg_exclude_add(struct cfg *cfg, const char *path)
+{
+	struct cfg_exclude *exc;
+	size_t len = strlen(path);
+
+	exc = malloc(sizeof(struct cfg_exclude) + len + 1);
+	if (exc == NULL) {
+		ERR("exclude add: out of memory\n");
+		return -ENOMEM;
+	}
+	memcpy(exc->exclude_dir, path, len + 1);
+
+	DBG("exclude add: %s\n", path);
+
+	exc->next = cfg->excludes;
+	cfg->excludes = exc;
+	return 0;
+}
+
+static void cfg_exclude_free(struct cfg_exclude *exc)
+{
+	free(exc);
+}
+
 static int cfg_kernel_matches(const struct cfg *cfg, const char *pattern)
 {
 	regex_t re;
@@ -657,6 +692,11 @@ static int cfg_file_parse(struct cfg *cfg, const char *filename)
 			}
 
 			cfg_external_add(cfg, dir);
+		} else if (streq(cmd, "exclude")) {
+			const char *sp;
+			while ((sp = strtok_r(NULL, "\t ", &saveptr)) != NULL) {
+				cfg_exclude_add(cfg, sp);
+			}
 		} else if (streq(cmd, "include")
 				|| streq(cmd, "make_map_files")) {
 			INF("%s:%u: command %s not implemented yet\n",
@@ -857,6 +897,12 @@ static void cfg_free(struct cfg *cfg)
 		cfg->externals = cfg->externals->next;
 		cfg_external_free(tmp);
 	}
+
+	while (cfg->excludes) {
+		struct cfg_exclude *tmp = cfg->excludes;
+		cfg->excludes = cfg->excludes->next;
+		cfg_exclude_free(tmp);
+	}
 }
 
 
@@ -865,7 +911,7 @@ struct vertex;
 struct mod {
 	struct kmod_module *kmod;
 	char *path;
-	const char *relpath; /* path relative to '$ROOT/lib/modules/$VER/' */
+	const char *relpath; /* path relative to '$ROOT$MODULE_DIRECTORY/$VER/' */
 	char *uncrelpath; /* same as relpath but ending in .ko */
 	struct kmod_list *info_list;
 	struct kmod_list *dep_sym_list;
@@ -1229,6 +1275,25 @@ add:
 	return 0;
 }
 
+static bool should_exclude_dir(const struct cfg *cfg, const char *name)
+{
+	struct cfg_exclude *exc;
+
+	if (name[0] == '.' && (name[1] == '\0' ||
+			(name[1] == '.' && name[2] == '\0')))
+		return true;
+
+	if (streq(name, "build") || streq(name, "source"))
+		return true;
+
+	for (exc = cfg->excludes; exc != NULL; exc = exc->next) {
+		if (streq(name, exc->exclude_dir))
+			return true;
+	}
+
+	return false;
+}
+
 static int depmod_modules_search_dir(struct depmod *depmod, DIR *d, size_t baselen, struct scratchbuf *s_path)
 {
 	struct dirent *de;
@@ -1240,11 +1305,9 @@ static int depmod_modules_search_dir(struct depmod *depmod, DIR *d, size_t basel
 		size_t namelen;
 		uint8_t is_dir;
 
-		if (name[0] == '.' && (name[1] == '\0' ||
-				       (name[1] == '.' && name[2] == '\0')))
+		if (should_exclude_dir(depmod->cfg, name))
 			continue;
-		if (streq(name, "build") || streq(name, "source"))
-			continue;
+
 		namelen = strlen(name);
 		if (scratchbuf_alloc(s_path, baselen + namelen + 2) < 0) {
 			err = -ENOMEM;
@@ -1524,7 +1587,7 @@ static int depmod_load_modules(struct depmod *depmod)
 		struct kmod_list *l, *list = NULL;
 		int err = kmod_module_get_symbols(mod->kmod, &list);
 		if (err < 0) {
-			if (err == -ENOENT)
+			if (err == -ENODATA)
 				DBG("ignoring %s: no symbols\n", mod->path);
 			else
 				ERR("failed to load symbols from %s: %s\n",
@@ -2346,6 +2409,103 @@ static int output_builtin_bin(struct depmod *depmod, FILE *out)
 	return 0;
 }
 
+static int flush_stream(FILE *in, int endchar)
+{
+	size_t i = 0;
+	int c;
+
+	for (c = fgetc(in);
+	     c != EOF && c != endchar && c != '\0';
+	     c = fgetc(in))
+		;
+
+	return c == endchar ? i : 0;
+}
+
+static int flush_stream_to(FILE *in, int endchar, char *dst, size_t dst_sz)
+{
+	size_t i = 0;
+	int c;
+
+	for (c = fgetc(in);
+	     c != EOF && c != endchar && c != '\0' && i < dst_sz;
+	     c = fgetc(in))
+		dst[i++] = c;
+
+	if (i == dst_sz) {
+		WRN("Could not flush stream: %d. Partial content: %.*s\n",
+		    ENOSPC, (int) dst_sz, dst);
+		i--;
+	}
+
+	return c == endchar ? i : 0;
+}
+
+static int output_builtin_alias_bin(struct depmod *depmod, FILE *out)
+{
+	FILE *in;
+	struct index_node *idx;
+	int ret;
+
+	if (out == stdout)
+		return 0;
+
+	in = dfdopen(depmod->cfg->dirname, "modules.builtin.modinfo", O_RDONLY, "r");
+	if (in == NULL)
+		return 0;
+
+	idx = index_create();
+	if (idx == NULL) {
+		fclose(in);
+		return -ENOMEM;
+	}
+
+	/* format: modname.key=value\0 */
+	while (!feof(in) && !ferror(in)) {
+		char alias[PATH_MAX];
+		char modname[PATH_MAX];
+		char value[PATH_MAX];
+		size_t len;
+
+		len = flush_stream_to(in, '.', modname, sizeof(modname));
+		modname[len] = '\0';
+		if (!len)
+			continue;
+
+		len = flush_stream_to(in, '=', value, sizeof(value));
+		value[len] = '\0';
+		if (!streq(value, "alias")) {
+			flush_stream(in, '\0');
+			continue;
+		}
+
+		len = flush_stream_to(in, '\0', value, sizeof(value));
+		value[len] = '\0';
+		if (!len)
+			continue;
+
+		alias[0] = '\0';
+		if (alias_normalize(value, alias, NULL) < 0) {
+			WRN("Unmatched bracket in %s\n", value);
+			continue;
+		}
+
+		index_insert(idx, alias, modname, 0);
+	}
+
+	if (ferror(in)) {
+		ret = -EINVAL;
+	} else {
+		index_write(idx, out);
+		ret = 0;
+	}
+
+	index_destroy(idx);
+	fclose(in);
+
+	return ret;
+}
+
 static int output_devname(struct depmod *depmod, FILE *out)
 {
 	size_t i;
@@ -2403,71 +2563,6 @@ static int output_devname(struct depmod *depmod, FILE *out)
 	return 0;
 }
 
-static int output_builtin_alias_bin(struct depmod *depmod, FILE *out)
-{
-	int ret = 0, count = 0;
-	struct index_node *idx;
-	struct kmod_list *l, *builtin = NULL;
-
-	if (out == stdout)
-		return 0;
-
-	idx = index_create();
-	if (idx == NULL)
-		return -ENOMEM;
-
-	ret = kmod_module_get_builtin(depmod->ctx, &builtin);
-	if (ret < 0) {
-		if (ret == -ENOENT)
-			ret = 0;
-		goto out;
-	}
-
-	kmod_list_foreach(l, builtin) {
-		struct kmod_list *ll, *info_list = NULL;
-		struct kmod_module *mod = l->data;
-		const char *modname = kmod_module_get_name(mod);
-
-		ret = kmod_module_get_info(mod, &info_list);
-		if (ret < 0)
-			goto out;
-
-		kmod_list_foreach(ll, info_list) {
-			char alias[PATH_MAX];
-			const char *key = kmod_module_info_get_key(ll);
-			const char *value = kmod_module_info_get_value(ll);
-
-			if (!streq(key, "alias"))
-				continue;
-
-			alias[0] = '\0';
-			if (alias_normalize(value, alias, NULL) < 0) {
-				WRN("Unmatched bracket in %s\n", value);
-				continue;
-			}
-
-			index_insert(idx, alias, modname, 0);
-		}
-
-		kmod_module_info_free_list(info_list);
-
-		index_insert(idx, modname, modname, 0);
-		count++;
-	}
-
-out:
-	/* do not bother writing the index if we are going to discard it */
-	if (ret > 0)
-		index_write(idx, out);
-
-	if (builtin)
-		kmod_module_unref_list(builtin);
-
-	index_destroy(idx);
-
-	return ret;
-}
-
 static int depmod_output(struct depmod *depmod, FILE *out)
 {
 	static const struct depfile {
@@ -2486,7 +2581,7 @@ static int depmod_output(struct depmod *depmod, FILE *out)
 		{ "modules.devname", output_devname },
 		{ }
 	};
-	const char *dname = depmod->cfg->dirname;
+	const char *dname = depmod->cfg->outdirname;
 	int dfd, err = 0;
 	struct timeval tv;
 
@@ -2495,6 +2590,11 @@ static int depmod_output(struct depmod *depmod, FILE *out)
 	if (out != NULL)
 		dfd = -1;
 	else {
+		err = mkdir_p(dname, strlen(dname), 0755);
+		if (err < 0) {
+			CRIT("could not create directory %s: %m\n", dname);
+			return err;
+		}
 		dfd = open(dname, O_RDONLY);
 		if (dfd < 0) {
 			err = -errno;
@@ -2808,6 +2908,7 @@ static int do_depmod(int argc, char *argv[])
 	FILE *out = NULL;
 	int err = 0, all = 0, maybe_all = 0, n_config_paths = 0;
 	_cleanup_free_ char *root = NULL;
+	_cleanup_free_ char *out_root = NULL;
 	_cleanup_free_ const char **config_paths = NULL;
 	const char *system_map = NULL;
 	const char *module_symvers = NULL;
@@ -2836,6 +2937,11 @@ static int do_depmod(int argc, char *argv[])
 			if (root)
 				free(root);
 			root = path_make_absolute_cwd(optarg);
+			break;
+		case 'o':
+			if (out_root)
+				free(out_root);
+			out_root = path_make_absolute_cwd(optarg);
 			break;
 		case 'C': {
 			size_t bytes = sizeof(char *) * (n_config_paths + 2);
@@ -2918,8 +3024,12 @@ static int do_depmod(int argc, char *argv[])
 	}
 
 	cfg.dirnamelen = snprintf(cfg.dirname, PATH_MAX,
-				  "%s/lib/modules/%s",
-				  root == NULL ? "" : root, cfg.kversion);
+				  "%s" MODULE_DIRECTORY "/%s",
+				  root ?: "", cfg.kversion);
+
+	cfg.outdirnamelen = snprintf(cfg.outdirname, PATH_MAX,
+				     "%s" MODULE_DIRECTORY "/%s",
+				     out_root ?: (root ?: ""), cfg.kversion);
 
 	if (optind == argc)
 		all = 1;

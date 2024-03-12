@@ -1,3 +1,106 @@
+kmod (31+20240202-2) unstable; urgency=medium
+
+  * Stop using /usr/lib/modules/ because it requires coordination with other
+    packages. (Closes: #1063749)
+
+ -- Marco d'Itri <md@linux.it>  Tue, 13 Feb 2024 17:33:24 +0100
+
+kmod (31+20240202-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+
+ -- Marco d'Itri <md@linux.it>  Sat, 10 Feb 2024 20:10:16 +0100
+
+kmod (31-1) unstable; urgency=medium
+
+  [ Marco d'Itri ]
+  * New upstream release.
+
+  [ Helmut Grohne ]
+  * DEP17: Move all files to /usr/. (Closes: #1059920)
+
+ -- Marco d'Itri <md@linux.it>  Thu, 04 Jan 2024 20:10:38 +0100
+
+kmod (30+20230601-2.1) unstable; urgency=medium
+
+  * Non-maintainer upload with maintainer approval.
+  * Enable xz support in the udeb. This is needed since linux 6.6.8-1 hit
+    unstable, as its binary packages now ship compressed modules.
+  * Declare minimal version for the liblzma-dev build-dep accordingly.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 24 Dec 2023 00:08:19 +0100
+
+kmod (30+20230601-2) unstable; urgency=medium
+
+  * kmod.postinst: run restorecon after creating /etc/modules.
+
+ -- Marco d'Itri <md@linux.it>  Sat, 23 Sep 2023 00:39:17 +0200
+
+kmod (30+20230601-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+  * On new systems and if /etc/modules was not been modified locally then
+    replace it with a comment which explains that it is obsolete.
+  * Remove the related modules(5) man pages.
+  * Make the init script ignore /lib/modules-load.d/. (Closes: #1050427)
+
+ -- Marco d'Itri <md@linux.it>  Sat, 26 Aug 2023 02:38:18 +0200
+
+kmod (30+20230519-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+
+ -- Marco d'Itri <md@linux.it>  Sun, 11 Jun 2023 00:34:33 +0200
+
+kmod (30+20221128-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+  * Add a dependency on pkg-config | pkgconf. (Closes: #1023895)
+
+ -- Marco d'Itri <md@linux.it>  Sat, 10 Dec 2022 01:02:24 +0100
+
+kmod (30+20220905-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+  * Remove the dependency on lsb-base. (Closes: #1020605)
+  * Update the copyright file. (Closes: #1021033)
+
+ -- Marco d'Itri <md@linux.it>  Sat, 08 Oct 2022 05:07:42 +0200
+
+kmod (30+20220630-3) unstable; urgency=high
+
+  * Make test suite failures non-fatal on mipsel, because some tests
+    have been broken on it for years but since no tests were actually
+    being run before version 30+20220630-1 then nobody noticed.
+
+ -- Marco d'Itri <md@linux.it>  Sat, 30 Jul 2022 02:25:29 +0200
+
+kmod (30+20220630-2) unstable; urgency=medium
+
+  [ Marco d'Itri ]
+  * Implemented the generation of a less strict shlibs file to benefit
+    udebs.
+
+  [ Helmut Grohne ]
+  * Annotated the zstd dependency with <!nocheck>. (Closes: #1014437)
+
+  [ Witold Baryluk ]
+  * Allow USB audio devices to be the first sound device, because nowadays
+    they are more common and this is what the other distributions do.
+
+ -- Marco d'Itri <md@linux.it>  Tue, 12 Jul 2022 01:58:34 +0200
+
+kmod (30+20220630-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+  * Enabled support for zstd. (Closes: #990092)
+  * kmod.postinst: removed code to handle upgrades from Debian <= 8.
+    (Closes: #1009349, #1000659)
+  * Changed the $PATH in the init script to include /usr/. (Closes: #993297)
+  * Enabled the test suite.
+
+ -- Marco d'Itri <md@linux.it>  Sun, 03 Jul 2022 13:28:18 +0200
+
 kmod (29-1) unstable; urgency=medium
 
   * New upstream release.

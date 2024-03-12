@@ -1,7 +1,7 @@
-/bin/kmod /sbin/depmod
-/bin/kmod /sbin/insmod
-/bin/kmod /sbin/lsmod
-/bin/kmod /sbin/modinfo
-/bin/kmod /sbin/modprobe
-/bin/kmod /sbin/rmmod
-/bin/kmod /bin/lsmod
+/usr/bin/kmod /usr/sbin/depmod
+/usr/bin/kmod /usr/sbin/insmod
+/usr/bin/kmod /usr/sbin/lsmod
+/usr/bin/kmod /usr/sbin/modinfo
+/usr/bin/kmod /usr/sbin/modprobe
+/usr/bin/kmod /usr/sbin/rmmod
+/usr/bin/kmod /usr/bin/lsmod

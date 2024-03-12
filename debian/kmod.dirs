@@ -1,5 +1,4 @@
 /etc/modprobe.d/
-/lib/modprobe.d/
-/sbin/
+/usr/lib/modprobe.d/
 /usr/share/doc/libkmod2/
 /usr/share/initramfs-tools/hooks/
