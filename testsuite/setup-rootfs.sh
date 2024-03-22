@@ -2,9 +2,28 @@
 
 set -e
 
-MODULE_PLAYGROUND=$1
+ROOTFS_PRISTINE=$1
 ROOTFS=$2
-CONFIG_H=$3
+MODULE_PLAYGROUND=$3
+CONFIG_H=$4
+SYSCONFDIR=$5
+
+# create rootfs from rootfs-pristine
+
+create_rootfs() {
+	rm -rf "$ROOTFS"
+	mkdir -p $(dirname "$ROOTFS")
+	cp -r "$ROOTFS_PRISTINE" "$ROOTFS"
+	find "$ROOTFS" -type d -exec chmod +w {} \;
+	find "$ROOTFS" -type f -name .gitignore -exec rm -f {} \;
+
+	if [ "$SYSCONFDIR" != "/etc" ]; then
+		find "$ROOTFS" -type d -name etc -printf "%h\n" | while read -r e; do
+			mkdir -p "$(dirname $e/$SYSCONFDIR)"
+			mv $e/{etc,$SYSCONFDIR}
+		done
+	fi
+}
 
 feature_enabled() {
 	local feature=$1
@@ -56,9 +75,14 @@ map=(
     ["test-modprobe/alias-to-none/lib/modules/4.4.4/kernel/"]="mod-simple.ko"
     ["test-modprobe/module-param-kcmdline/lib/modules/4.4.4/kernel/"]="mod-simple.ko"
     ["test-modprobe/external/lib/modules/external/"]="mod-simple.ko"
+    ["test-modprobe/module-from-abspath/home/foo/"]="mod-simple.ko"
+    ["test-modprobe/module-from-relpath/home/foo/"]="mod-simple.ko"
     ["test-depmod/modules-order-compressed/lib/modules/4.4.4/kernel/drivers/block/cciss.ko"]="mod-fake-cciss.ko"
     ["test-depmod/modules-order-compressed/lib/modules/4.4.4/kernel/drivers/scsi/hpsa.ko"]="mod-fake-hpsa.ko"
     ["test-depmod/modules-order-compressed/lib/modules/4.4.4/kernel/drivers/scsi/scsi_mod.ko"]="mod-fake-scsi-mod.ko"
+    ["test-depmod/modules-outdir/lib/modules/4.4.4/kernel/drivers/block/cciss.ko"]="mod-fake-cciss.ko"
+    ["test-depmod/modules-outdir/lib/modules/4.4.4/kernel/drivers/scsi/hpsa.ko"]="mod-fake-hpsa.ko"
+    ["test-depmod/modules-outdir/lib/modules/4.4.4/kernel/drivers/scsi/scsi_mod.ko"]="mod-fake-scsi-mod.ko"
     ["test-modinfo/mod-simple-i386.ko"]="mod-simple-i386.ko"
     ["test-modinfo/mod-simple-x86_64.ko"]="mod-simple-x86_64.ko"
     ["test-modinfo/mod-simple-sparc64.ko"]="mod-simple-sparc64.ko"
@@ -93,6 +117,8 @@ attach_sha1_array=(
 attach_pkcs7_array=(
     "test-modinfo/mod-simple-pkcs7.ko"
     )
+
+create_rootfs
 
 for k in "${!map[@]}"; do
     dst=${ROOTFS}/$k
@@ -138,3 +164,5 @@ done
 for m in "${attach_pkcs7_array[@]}"; do
     cat "${MODULE_PLAYGROUND}/dummy.pkcs7" >>"${ROOTFS}/$m"
 done
+
+touch testsuite/stamp-rootfs

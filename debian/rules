@@ -21,10 +21,13 @@ CONFFLAGS_deb  = $(CONFFLAGS) \
   --enable-gtk-doc \
   --with-openssl \
   --with-xz \
+  --with-zstd \
+  --disable-test-modules \
   --enable-debug
 CONFFLAGS_udeb = $(CONFFLAGS) \
   $(subst -O2,-Os -fomit-frame-pointer,$(shell DEB_BUILD_MAINT_OPTIONS="hardening=-all" \
-    dpkg-buildflags --export=configure || true))
+    dpkg-buildflags --export=configure || true)) \
+  --with-xz
 
 ##############################################################################
 include /usr/share/dpkg/architecture.mk
@@ -68,6 +71,7 @@ build-udeb/.stamp-build: build-udeb/config.status
 override_dh_auto_build: build-deb/.stamp-build $(BUILD_UDEB_TARGET)
 
 override_dh_auto_test:
+	dh_auto_test --builddir=build-deb
 
 override_dh_auto_install:
 	dh_auto_install --builddir=build-deb --destdir=$D
@@ -78,19 +82,19 @@ endif
 override_dh_install:
 	rm $D/usr/lib/*/*.la
 	dh_movefiles --sourcedir=debian/kmod
-	cp extra/aliases.conf $D/lib/modprobe.d/
+	cp debian/extra/aliases.conf $D/lib/modprobe.d/
 	install --mode=755 debian/kmod.initramfs-hook \
 		$D/usr/share/initramfs-tools/hooks/kmod
 	rmdir --parents --ignore-fail-on-non-empty $D/sbin/ $$(find $D/usr/ -type d -empty)
 ifdef BUILD_UDEB
 	mv $(DU)/usr/lib/*/libkmod.so.* $(DKU)/usr/lib/
 	rm -r $(DU)/usr/
-	egrep -i '^[a-z]' extra/aliases.conf > $(DU)/etc/modprobe.d/aliases.conf
+	egrep -i '^[a-z]' debian/extra/aliases.conf > $(DU)/etc/modprobe.d/aliases.conf
 endif
 
 override_dh_installdocs:
 	dh_installdocs -pkmod -plibkmod-dev --link-doc=libkmod2
-	dh_installdocs -pkmod --link-doc=libkmod2 README TODO
+	dh_installdocs -pkmod --link-doc=libkmod2 README.md TODO
 	dh_installdocs -plibkmod2
 	cp libkmod/README $(DD)/usr/share/doc/libkmod2/README.libkmod
 
@@ -101,7 +105,7 @@ override_dh_installinit:
 	dh_installinit --no-start
 
 override_dh_makeshlibs:
-	dh_makeshlibs -- -c4
+	dh_makeshlibs -V'libkmod2 (>= $(shell perl debian/highest_symbol_version debian/libkmod2.symbols))' -- -c4
 
 override_dh_shlibdeps:
 	dh_shlibdeps -- --warnings=7

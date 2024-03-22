@@ -24,26 +24,6 @@ AM_CPPFLAGS = \
 AM_CFLAGS = $(OUR_CFLAGS)
 AM_LDFLAGS = $(OUR_LDFLAGS)
 
-SED_PROCESS = \
-	$(AM_V_GEN)$(MKDIR_P) $(dir $@) && $(SED) \
-	-e 's,@VERSION\@,$(VERSION),g' \
-	-e 's,@prefix\@,$(prefix),g' \
-	-e 's,@exec_prefix\@,$(exec_prefix),g' \
-	-e 's,@libdir\@,$(libdir),g' \
-	-e 's,@includedir\@,$(includedir),g' \
-	-e 's,@libzstd_CFLAGS\@,${libzstd_CFLAGS},g' \
-	-e 's,@libzstd_LIBS\@,${libzstd_LIBS},g' \
-	-e 's,@liblzma_CFLAGS\@,${liblzma_CFLAGS},g' \
-	-e 's,@liblzma_LIBS\@,${liblzma_LIBS},g' \
-	-e 's,@zlib_CFLAGS\@,${zlib_CFLAGS},g' \
-	-e 's,@zlib_LIBS\@,${zlib_LIBS},g' \
-	-e 's,@libcrypto_CFLAGS\@,${libcrypto_CFLAGS},g' \
-	-e 's,@libcrypto_LIBS\@,${libcrypto_LIBS},g' \
-	< $< > $@ || rm $@
-
-%.pc: %.pc.in Makefile
-	$(SED_PROCESS)
-
 # Rules for libtool versioning (from https://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html)
 # 1. Start with version information of ‘0:0:0’ for each libtool library.
 # 2. Update the version information only immediately before a public release of
@@ -57,9 +37,9 @@ SED_PROCESS = \
 #    increment age.
 # 6. If any interfaces have been removed or changed since the last public
 #    release, then set age to 0.
-LIBKMOD_CURRENT=5
-LIBKMOD_REVISION=7
-LIBKMOD_AGE=3
+LIBKMOD_CURRENT=6
+LIBKMOD_REVISION=0
+LIBKMOD_AGE=4
 
 noinst_LTLIBRARIES = shared/libshared.la
 shared_libshared_la_SOURCES = \
@@ -116,8 +96,6 @@ libkmod_libkmod_internal_la_LIBADD = $(libkmod_libkmod_la_LIBADD)
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libkmod/libkmod.pc
-EXTRA_DIST += libkmod/libkmod.pc.in
-CLEANFILES += libkmod/libkmod.pc
 
 bashcompletiondir=@bashcompletiondir@
 dist_bashcompletion_DATA = \
@@ -179,9 +157,6 @@ am__v_CYTHON_0 = @echo "  CYTHON " $@;
 .pyx.c:
 	$(AM_V_CYTHON)$(CYTHON) -o $@ $<
 
-%.py: %.py.in Makefile
-	$(SED_PROCESS)
-
 # Remove some warnings for generated code
 PYTHON_NOWARN = -Wno-redundant-decls -Wno-shadow -Wno-strict-aliasing
 
@@ -239,22 +214,17 @@ endif
 # TESTSUITE
 # ------------------------------------------------------------------------------
 
-EXTRA_DIST += testsuite/populate-modules.sh
+EXTRA_DIST += testsuite/setup-rootfs.sh
 
 MODULE_PLAYGROUND = testsuite/module-playground
 ROOTFS = testsuite/rootfs
 ROOTFS_PRISTINE = $(top_srcdir)/testsuite/rootfs-pristine
-CREATE_ROOTFS = $(AM_V_GEN) ( $(RM) -rf $(ROOTFS) && mkdir -p $(dir $(ROOTFS)) && \
-				cp -r $(ROOTFS_PRISTINE) $(ROOTFS) && \
-				find $(ROOTFS) -type d -exec chmod +w {} \; && \
-				find $(ROOTFS) -type f -name .gitignore -exec rm -f {} \; && \
-				$(top_srcdir)/testsuite/populate-modules.sh \
-					$(MODULE_PLAYGROUND) $(ROOTFS) $(top_builddir)/config.h ) && \
-				touch testsuite/stamp-rootfs
+CREATE_ROOTFS = $(AM_V_GEN) $(top_srcdir)/testsuite/setup-rootfs.sh $(ROOTFS_PRISTINE) $(ROOTFS) $(MODULE_PLAYGROUND) $(top_builddir)/config.h $(sysconfdir)
 
 build-module-playground:
 	$(AM_V_GEN)if test "$(top_srcdir)" != "$(top_builddir)"; then \
 		$(RM) -rf testsuite/module-playground && \
+		mkdir -p testsuite/ && \
 		cp -r $(top_srcdir)/$(MODULE_PLAYGROUND) $(top_builddir)/$(MODULE_PLAYGROUND) && \
 		find $(top_builddir)/$(MODULE_PLAYGROUND) -type d -exec chmod +w {} \; ; \
 		fi
@@ -334,10 +304,6 @@ TESTSUITE_CPPFLAGS = $(AM_CPPFLAGS) \
 TESTSUITE_LDADD = \
 	testsuite/libtestsuite.la libkmod/libkmod-internal.la \
 	shared/libshared.la
-
-if KMOD_SYSCONFDIR_NOT_ETC
-TESTSUITE_CPPFLAGS += -DKMOD_SYSCONFDIR_NOT_ETC
-endif
 
 check_LTLIBRARIES += testsuite/libtestsuite.la
 testsuite_libtestsuite_la_SOURCES = \

@@ -56,6 +56,7 @@ enum pkey_hash_algo {
 	PKEY_HASH_SHA384,
 	PKEY_HASH_SHA512,
 	PKEY_HASH_SHA224,
+	PKEY_HASH_SM3,
 	PKEY_HASH__LAST
 };
 
@@ -68,6 +69,7 @@ const char *const pkey_hash_algo[PKEY_HASH__LAST] = {
 	[PKEY_HASH_SHA384]	= "sha384",
 	[PKEY_HASH_SHA512]	= "sha512",
 	[PKEY_HASH_SHA224]	= "sha224",
+	[PKEY_HASH_SM3]		= "sm3",
 };
 
 enum pkey_id_type {
@@ -161,6 +163,10 @@ static int obj_to_hash_algo(const ASN1_OBJECT *o)
 		return PKEY_HASH_SHA512;
 	case NID_sha224:
 		return PKEY_HASH_SHA224;
+# ifndef OPENSSL_NO_SM3
+	case NID_sm3:
+		return PKEY_HASH_SM3;
+# endif
 	default:
 		return -1;
 	}
@@ -213,6 +219,7 @@ static bool fill_pkcs7(const char *mem, off_t size,
 	unsigned char *key_id_str;
 	struct pkcs7_private *pvt;
 	const char *issuer_str;
+	int hash_algo;
 
 	size -= sig_len;
 	pkcs7_raw = mem + size;
@@ -271,7 +278,13 @@ static bool fill_pkcs7(const char *mem, off_t size,
 
 	X509_ALGOR_get0(&o, NULL, NULL, dig_alg);
 
-	sig_info->hash_algo = pkey_hash_algo[obj_to_hash_algo(o)];
+	hash_algo = obj_to_hash_algo(o);
+	if (hash_algo < 0)
+		goto err3;
+	sig_info->hash_algo = pkey_hash_algo[hash_algo];
+	// hash algo has not been recognized
+	if (sig_info->hash_algo == NULL)
+		goto err3;
 	sig_info->id_type = pkey_id_type[modsig->id_type];
 
 	pvt = malloc(sizeof(*pvt));
