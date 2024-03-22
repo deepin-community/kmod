@@ -1,6 +1,6 @@
 AC_PREREQ(2.64)
 AC_INIT([kmod],
-	[29],
+	[30],
 	[linux-modules@vger.kernel.org],
 	[kmod],
 	[http://git.kernel.org/?p=utils/kernel/kmod/kmod.git])
@@ -68,7 +68,8 @@ AC_COMPILE_IFELSE(
 
 AC_MSG_CHECKING([whether _Noreturn is supported])
 AC_COMPILE_IFELSE(
-	[AC_LANG_SOURCE([[_Noreturn int foo(void) { exit(0); }]])],
+	[AC_LANG_SOURCE([[#include <stdlib.h>
+	_Noreturn int foo(void) { exit(0); }]])],
         [AC_DEFINE([HAVE_NORETURN], [1], [Define if _Noreturn is available])
 	 AC_MSG_RESULT([yes])],
 	[AC_MSG_RESULT([no])])
@@ -87,7 +88,7 @@ AC_ARG_WITH([zstd],
 	AS_HELP_STRING([--with-zstd], [handle Zstandard-compressed modules @<:@default=disabled@:>@]),
 	[], [with_zstd=no])
 AS_IF([test "x$with_zstd" != "xno"], [
-	PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4.4])
+	PKG_CHECK_MODULES([libzstd], [libzstd >= 1.4.4], [LIBS="$LIBS $libzstd_LIBS"])
 	AC_DEFINE([ENABLE_ZSTD], [1], [Enable Zstandard for modules.])
 ], [
 	AC_MSG_NOTICE([Zstandard support not requested])
@@ -98,7 +99,7 @@ AC_ARG_WITH([xz],
 	AS_HELP_STRING([--with-xz], [handle Xz-compressed modules @<:@default=disabled@:>@]),
 	[], [with_xz=no])
 AS_IF([test "x$with_xz" != "xno"], [
-	PKG_CHECK_MODULES([liblzma], [liblzma >= 4.99])
+	PKG_CHECK_MODULES([liblzma], [liblzma >= 4.99], [LIBS="$LIBS $liblzma_LIBS"])
 	AC_DEFINE([ENABLE_XZ], [1], [Enable Xz for modules.])
 ], [
 	AC_MSG_NOTICE([Xz support not requested])
@@ -109,7 +110,7 @@ AC_ARG_WITH([zlib],
 	AS_HELP_STRING([--with-zlib], [handle gzipped modules @<:@default=disabled@:>@]),
 	[], [with_zlib=no])
 AS_IF([test "x$with_zlib" != "xno"], [
-	PKG_CHECK_MODULES([zlib], [zlib])
+	PKG_CHECK_MODULES([zlib], [zlib], [LIBS="$LIBS $zlib_LIBS"])
 	AC_DEFINE([ENABLE_ZLIB], [1], [Enable zlib for modules.])
 ], [
 	AC_MSG_NOTICE([zlib support not requested])
@@ -120,7 +121,7 @@ AC_ARG_WITH([openssl],
 	AS_HELP_STRING([--with-openssl], [handle PKCS7 signatures @<:@default=disabled@:>@]),
 	[], [with_openssl=no])
 AS_IF([test "x$with_openssl" != "xno"], [
-	PKG_CHECK_MODULES([libcrypto], [libcrypto >= 1.1.0])
+	PKG_CHECK_MODULES([libcrypto], [libcrypto >= 1.1.0], [LIBS="$LIBS $libcrypto_LIBS"])
 	AC_DEFINE([ENABLE_OPENSSL], [1], [Enable openssl for modinfo.])
 ], [
 	AC_MSG_NOTICE([openssl support not requested])
@@ -224,9 +225,6 @@ GTK_DOC_CHECK([1.14],[--flavour no-tmpl-flat])
 ], [
 AM_CONDITIONAL([ENABLE_GTK_DOC], false)])
 
-# Some tests are skipped when sysconfdir != /etc.
-AM_CONDITIONAL([KMOD_SYSCONFDIR_NOT_ETC], [test "x$sysconfdir" != "x/etc"])
-
 #####################################################################
 # Default CFLAGS and LDFLAGS
 #####################################################################
@@ -294,6 +292,8 @@ AC_CONFIG_FILES([
 	man/Makefile
 	libkmod/docs/Makefile
 	libkmod/docs/version.xml
+	libkmod/libkmod.pc
+	libkmod/python/kmod/version.py
 ])
 
 

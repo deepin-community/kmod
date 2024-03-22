@@ -1,61 +1,37 @@
 #!/bin/sh -e
 
+delete_old_etc_modules() {
+  # normalize the files by ignoring empty lines
+  local modules_hash="$(sed -e '/^$/d' /etc/modules | md5sum | cut -d ' ' -f1)"
+
+  case "$modules_hash" in
+    330dcf902eae56682d44133c168fee89) ;;
+    6e5894c5d926d1e69968e64e3ffa1cbd) ;;
+    *) return ;;
+  esac
+
+  # delete the unmodified /etc/modules
+  rm -f /etc/modules
+}
+
 create_etc_modules() {
   [ -e /etc/modules ] && return 0
   cat <<END > /etc/modules
-# /etc/modules: kernel modules to load at boot time.
+# /etc/modules is obsolete and has been replaced by /etc/modules-load.d/.
+# Please see modules-load.d(5) and modprobe.d(5) for details.
 #
-# This file contains the names of kernel modules that should be loaded
-# at boot time, one per line. Lines beginning with "#" are ignored.
-# Parameters can be specified after the module name.
-
+# Updating this file still works, but it is undocumented and unsupported.
 END
   chmod 644 /etc/modules
-}
-
-# move the modules parameters from /etc/modules to a new file in modprobe.d
-convert_etc_modules() {
-  if dpkg --compare-versions "$2" ge "18-2"; then
-    return
-  fi
-
-  [ -e /etc/modules ] || return 0
-
-  if [ -e /etc/modprobe.d/etc-modules-parameters.conf ]; then
-    echo "/etc/modprobe.d/etc-modules-parameters.conf already exists."
-    return
-  fi
-
-  perl -e '
-  use warnings;
-  use strict;
-
-  my @parameters;
-  while (<>) {
-    /^# Parameters can be specified after the module name\.$/ && next;
-    push(@parameters, $1) if s/^( (\s* \w+) \s+ \w.* )$/$2/x;
-    print $_;
-  }
-  exit 0 if not @parameters;
-
-  open(OUT, "> /etc/modprobe.d/etc-modules-parameters.conf") or die "open: $!";
-  print OUT "# These parameters have been moved from /etc/modules by the kmod package.\n\n";
-  print OUT "options $_\n" foreach @parameters;
-  close OUT or die "close: $!";
-  ' < /etc/modules > /etc/modules.kmod-postinst
-
-  # replace the old file if it has been changed
-  if cmp --quiet /etc/modules /etc/modules.kmod-postinst; then
-    rm /etc/modules.kmod-postinst
-  else
-    mv /etc/modules.kmod-postinst /etc/modules
+  if which restorecon > /dev/null 2>&1; then
+    restorecon /etc/modules
   fi
 }
 
 case "$1" in
   configure)
+  delete_old_etc_modules
   create_etc_modules
-  convert_etc_modules "$@"
 esac
 
 #DEBHELPER#
