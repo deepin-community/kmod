@@ -1,0 +1,73 @@
+From 9483c2edd615184cb595e650046d0b375dbd086c Mon Sep 17 00:00:00 2001
+From: Tobias Stoeckmann <tobias@stoeckmann.org>
+Date: Thu, 17 Oct 2024 23:55:06 +0200
+Subject: [PATCH] libkmod: Use pread where appropriate
+
+Since we do not want to modify the current position in file, use pread
+instead of read + lseek. Removes one lseek call per module, which for
+depmod on Arch Linux means 6143 calls.
+
+Index: kmod/libkmod/libkmod-file.c
+===================================================================
+--- kmod.orig/libkmod/libkmod-file.c
++++ kmod/libkmod/libkmod-file.c
+@@ -457,8 +457,7 @@ struct kmod_file *kmod_file_open(const s
+ 			err = -errno;
+ 			goto error;
+ 		}
+-		sz = read_str_safe(file->fd, buf, magic_size_max + 1);
+-		lseek(file->fd, 0, SEEK_SET);
++		sz = pread_str_safe(file->fd, buf, magic_size_max + 1, 0);
+ 		if (sz != (ssize_t)magic_size_max) {
+ 			if (sz < 0)
+ 				err = sz;
+Index: kmod/shared/util.c
+===================================================================
+--- kmod.orig/shared/util.c
++++ kmod/shared/util.c
+@@ -197,6 +197,33 @@ bool path_ends_with_kmod_ext(const char
+ 
+ /* read-like and fread-like functions                                       */
+ /* ************************************************************************ */
++ssize_t pread_str_safe(int fd, char *buf, size_t buflen, off_t off)
++{
++	size_t todo = buflen - 1;
++	size_t done = 0;
++
++	assert_cc(EAGAIN == EWOULDBLOCK);
++
++	do {
++		ssize_t r = pread(fd, buf + done, todo, off + done);
++
++		if (r == 0)
++			break;
++		else if (r > 0) {
++			todo -= r;
++			done += r;
++		} else {
++			if (errno == EAGAIN || errno == EINTR)
++				continue;
++			else
++				return -errno;
++		}
++	} while (todo > 0);
++
++	buf[done] = '\0';
++	return done;
++}
++
+ ssize_t read_str_safe(int fd, char *buf, size_t buflen)
+ {
+ 	size_t todo = buflen - 1;
+Index: kmod/shared/util.h
+===================================================================
+--- kmod.orig/shared/util.h
++++ kmod/shared/util.h
+@@ -30,6 +30,7 @@ bool path_ends_with_kmod_ext(const char
+ 
+ /* read-like and fread-like functions                                       */
+ /* ************************************************************************ */
++ssize_t pread_str_safe(int fd, char *buf, size_t buflen,off_t off)_must_check_ __attribute__((nonnull(2)));
+ ssize_t read_str_safe(int fd, char *buf, size_t buflen) _must_check_ __attribute__((nonnull(2)));
+ ssize_t write_str_safe(int fd, const char *buf, size_t buflen) __attribute__((nonnull(2)));
+ int read_str_long(int fd, long *value, int base) _must_check_ __attribute__((nonnull(2)));

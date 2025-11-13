@@ -1,3 +1,9 @@
+kmod (30+20230601-2.2deepin1) unstable; urgency=medium
+
+  * use pread where appropriate
+
+ -- dongshengyuan <dongshengyuan@uniontech.com>  Thu, 13 Nov 2025 10:32:58 +0800
+
 kmod (30+20230601-2.1) unstable; urgency=medium
 
   * Non-maintainer upload with maintainer approval.
