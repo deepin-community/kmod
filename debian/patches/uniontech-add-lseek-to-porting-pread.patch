@@ -1,0 +1,18 @@
+Index: kmod/libkmod/libkmod-file.c
+===================================================================
+--- kmod.orig/libkmod/libkmod-file.c	2025-11-25 09:24:48.000000000 +0800
++++ kmod/libkmod/libkmod-file.c	2025-11-25 09:27:32.963778306 +0800
+@@ -457,6 +457,13 @@
+ 			err = -errno;
+ 			goto error;
+ 		}
++
++		sz = lseek(file->fd, 0, SEEK_CUR);
++		if (sz < 0) {
++			err = sz;
++			goto error;
++		}
++
+ 		sz = pread_str_safe(file->fd, buf, magic_size_max + 1, 0);
+ 		if (sz != (ssize_t)magic_size_max) {
+ 			if (sz < 0)
