@@ -1,3 +1,9 @@
+kmod (30+20230601-2.2deepin2) unstable; urgency=medium
+
+  * add lseek to porting pread
+
+ -- dongshengyuan <dongshengyuan@uniontech.com>  Tue, 25 Nov 2025 09:29:11 +0800
+
 kmod (30+20230601-2.2deepin1) unstable; urgency=medium
 
   * use pread where appropriate
