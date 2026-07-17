@@ -1,22 +1,11 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /*
  * Copyright (C) 2012-2013  ProFUSION embedded systems
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,16 +14,13 @@
 
 #include "testsuite.h"
 
+#define EXEC_MODPROBE(...)                     \
+	test_spawn_prog(TOOLS_DIR "/modprobe", \
+			(const char *[]){ TOOLS_DIR "/modprobe", ##__VA_ARGS__, NULL })
+
 static noreturn int modprobe_show_depends(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--show-depends", "mod-loop-a",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--show-depends", "mod-loop-a");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_show_depends,
@@ -49,14 +35,7 @@ DEFINE_TEST(modprobe_show_depends,
 
 static noreturn int modprobe_show_depends2(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--show-depends", "mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--show-depends", "mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_show_depends2,
@@ -68,18 +47,18 @@ DEFINE_TEST(modprobe_show_depends2,
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/show-depends/correct-mod-simple.txt",
 	});
-
+DEFINE_TEST_WITH_FUNC(modprobe_show_depends_no_load, modprobe_show_depends2,
+	.description = "check that --show-depends doesn't load any module",
+	.config = {
+		[TC_UNAME_R] = "4.4.4",
+		[TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/show-depends",
+	},
+	.modules_loaded = "",
+	);
 
 static noreturn int modprobe_show_alias_to_none(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--show-depends", "--ignore-install", "--quiet", "mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--show-depends", "--ignore-install", "--quiet", "mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_show_alias_to_none,
@@ -94,17 +73,9 @@ DEFINE_TEST(modprobe_show_alias_to_none,
 	.modules_loaded = "",
 	);
 
-
 static noreturn int modprobe_show_exports(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--show-exports", "--quiet", "/mod-loop-a.ko",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--show-exports", "--quiet", "/mod-loop-a.ko");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_show_exports,
@@ -117,36 +88,20 @@ DEFINE_TEST(modprobe_show_exports,
 		.regex = true,
 	});
 
-
 static noreturn int modprobe_builtin(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"unix",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("unix");
 	exit(EXIT_FAILURE);
 }
-DEFINE_TEST(modprobe_builtin,
-	.description = "check if modprobe return 0 for builtin",
-	.config = {
-		[TC_UNAME_R] = "4.4.4",
-		[TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/builtin",
-	});
+DEFINE_TEST(modprobe_builtin, .description = "check if modprobe return 0 for builtin",
+	    .config = {
+		    [TC_UNAME_R] = "4.4.4",
+		    [TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/builtin",
+	    });
 
 static noreturn int modprobe_builtin_lookup_only(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"-R", "unix",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("-R", "unix");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_builtin_lookup_only,
@@ -161,14 +116,7 @@ DEFINE_TEST(modprobe_builtin_lookup_only,
 
 static noreturn int modprobe_softdep_loop(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"mod-loop-b",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("mod-loop-b");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_softdep_loop,
@@ -181,16 +129,25 @@ DEFINE_TEST(modprobe_softdep_loop,
 	.modules_loaded = "mod-loop-a,mod-loop-b",
 	);
 
+static noreturn int modprobe_weakdep_loop(const struct test *t)
+{
+	EXEC_MODPROBE("mod-loop-b");
+	exit(EXIT_FAILURE);
+}
+DEFINE_TEST(modprobe_weakdep_loop,
+	.description = "check if modprobe breaks weakdep loop",
+	.config = {
+		[TC_UNAME_R] = "4.4.4",
+		[TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/weakdep-loop",
+		[TC_INIT_MODULE_RETCODES] = "",
+	},
+	.modules_loaded = "mod-loop-b",
+	.modules_not_loaded = "mod-loop-a,mod-simple-c",
+	);
+
 static noreturn int modprobe_install_cmd_loop(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"mod-loop-a",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("mod-loop-a");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_install_cmd_loop,
@@ -201,7 +158,7 @@ DEFINE_TEST(modprobe_install_cmd_loop,
 		[TC_INIT_MODULE_RETCODES] = "",
 	},
 	.env_vars = (const struct keyval[]) {
-		{ "MODPROBE", ABS_TOP_BUILDDIR "/tools/modprobe" },
+		{ "MODPROBE", TOOLS_DIR "/modprobe" },
 		{ }
 		},
 	.modules_loaded = "mod-loop-b,mod-loop-a",
@@ -209,14 +166,7 @@ DEFINE_TEST(modprobe_install_cmd_loop,
 
 static noreturn int modprobe_param_kcmdline_show_deps(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--show-depends", "mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--show-depends", "mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_param_kcmdline_show_deps,
@@ -227,20 +177,11 @@ DEFINE_TEST(modprobe_param_kcmdline_show_deps,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 static noreturn int modprobe_param_kcmdline(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"-c",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("-c");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline2, modprobe_param_kcmdline,
@@ -251,9 +192,7 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline2, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline2/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline3, modprobe_param_kcmdline,
 	.description = "check if unrelated strings in kcmdline are correctly ignored",
@@ -263,9 +202,7 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline3, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline3/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline4, modprobe_param_kcmdline,
 	.description = "check if unrelated strings in kcmdline are correctly ignored",
@@ -275,9 +212,7 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline4, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline4/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline5, modprobe_param_kcmdline,
 	.description = "check if params with spaces are parsed correctly from kcmdline",
@@ -299,9 +234,7 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline6, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline6/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline7, modprobe_param_kcmdline,
 	.description = "check if dots on other parts of kcmdline don't confuse our parser",
@@ -311,9 +244,7 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline7, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline7/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
 DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline8, modprobe_param_kcmdline,
 	.description = "check if dots on other parts of kcmdline don't confuse our parser",
@@ -323,21 +254,21 @@ DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline8, modprobe_param_kcmdline,
 	},
 	.output = {
 		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline8/correct.txt",
-	},
-	.modules_loaded = "",
-	);
+	});
 
+DEFINE_TEST_WITH_FUNC(modprobe_param_kcmdline9, modprobe_param_kcmdline,
+	.description = "check if multiple blacklists are parsed correctly",
+	.config = {
+		[TC_UNAME_R] = "4.4.4",
+		[TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline9",
+	},
+	.output = {
+		.out = TESTSUITE_ROOTFS "test-modprobe/module-param-kcmdline9/correct.txt",
+	});
 
 static noreturn int modprobe_force(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--force", "mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--force", "mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_force,
@@ -352,14 +283,7 @@ DEFINE_TEST(modprobe_force,
 
 static noreturn int modprobe_oldkernel(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_oldkernel,
@@ -374,14 +298,7 @@ DEFINE_TEST(modprobe_oldkernel,
 
 static noreturn int modprobe_oldkernel_force(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"--force", "mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("--force", "mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_oldkernel_force,
@@ -396,14 +313,7 @@ DEFINE_TEST(modprobe_oldkernel_force,
 
 static noreturn int modprobe_external(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"mod-simple",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("mod-simple");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_external,
@@ -418,14 +328,7 @@ DEFINE_TEST(modprobe_external,
 
 static noreturn int modprobe_module_from_abspath(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"/home/foo/mod-simple.ko",
-		NULL,
-	};
-
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("/home/foo/mod-simple.ko");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_module_from_abspath,
@@ -440,19 +343,12 @@ DEFINE_TEST(modprobe_module_from_abspath,
 
 static noreturn int modprobe_module_from_relpath(const struct test *t)
 {
-	const char *progname = ABS_TOP_BUILDDIR "/tools/modprobe";
-	const char *const args[] = {
-		progname,
-		"./mod-simple.ko",
-		NULL,
-	};
-
 	if (chdir("/home/foo") != 0) {
 		perror("failed to change into /home/foo");
 		exit(EXIT_FAILURE);
 	}
 
-	test_spawn_prog(progname, args);
+	EXEC_MODPROBE("./mod-simple.ko");
 	exit(EXIT_FAILURE);
 }
 DEFINE_TEST(modprobe_module_from_relpath,
@@ -462,7 +358,6 @@ DEFINE_TEST(modprobe_module_from_relpath,
 		[TC_ROOTFS] = TESTSUITE_ROOTFS "test-modprobe/module-from-relpath",
 		[TC_INIT_MODULE_RETCODES] = "",
 	},
-	.need_spawn = true,
 	.modules_loaded = "mod-simple",
 	);
 
