@@ -1,0 +1,21 @@
+Description: Add lseek to porting pread
+Author: dongshengyuan <dongshengyuan@uniontech.com>
+Origin: https://github.com/deepin-community/kmod.git
+Last-Update: 2025-11-25
+
+--- a/libkmod/libkmod-file.c	2026-07-17 23:26:29.977626899 +0800
++++ b/libkmod/libkmod-file.c	2026-07-17 23:26:29.987627101 +0800
+@@ -95,6 +95,13 @@
+ 		return NULL;
+ 	}
+ 
++	sz = lseek(file->fd, 0, SEEK_CUR);
++	if (sz < 0) {
++		close(file->fd);
++		free(file);
++		return NULL;
++	}
++
+ 	sz = pread_str_safe(file->fd, buf, sizeof(buf), 0);
+ 	if (sz != (sizeof(buf) - 1)) {
+ 		if (sz < 0)

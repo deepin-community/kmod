@@ -1,3 +1,10 @@
+kmod (34.2-2deepin1) unstable; urgency=medium
+
+  * Restore uniontech-add-lseek-to-porting-pread.patch from master branch:
+    add lseek to verify fd seekability before using pread.
+
+ -- lichenggang <lichenggang@uniontech.com>  Thu, 17 Jul 2026 23:27:00 +0800
+
 kmod (34.2-2) unstable; urgency=medium
 
   * kmod.initramfs-hook: if compressed modules have been copied to the
